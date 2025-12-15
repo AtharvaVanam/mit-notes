@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { HashRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, FileText, BookOpen, Search, Download, AlertCircle, CheckCircle, ServerOff, Zap } from 'lucide-react';
 import axios from 'axios';
 
-// --- CONFIG & MOCK DATA ---
+// --- CONFIGURATION ---
+const API_URL = 'https://mit-notes.onrender.com/api';
+
+// --- MOCK DATA FOR FALLBACK ---
 const MOCK_NOTES = [
   { _id: '1', branch: 'Computer Science', subject: 'Data Structures', topic: 'Binary Trees', description: 'Introduction to BST and AVL trees with time complexity analysis.', filePath: '#' },
   { _id: '2', branch: 'Mechanical', subject: 'Thermodynamics', topic: 'Laws of Thermodynamics', description: 'Summary of 1st and 2nd laws with real-world engine examples.', filePath: '#' },
@@ -69,14 +72,19 @@ const Home = () => {
 
   useEffect(() => {
     // Attempt to fetch from backend
-    axios.get('http://https://mit-notes.onrender.com/api/notes')
+    axios.get(`${API_URL}/notes`)
       .then(res => {
         setRecent(res.data);
         setServerError(false);
       })
       .catch(err => {
-        // If backend is off, use Mock Data seamlessly
-        if (err.code !== 'ERR_NETWORK') console.error(err);
+        // If backend is off OR returns 500 (DB error), use Mock Data seamlessly
+        const isBackendError = err.code === 'ERR_NETWORK' || err.response?.status === 500;
+        if (!isBackendError) {
+           console.error("Could not fetch notes:", err);
+        } else {
+           console.warn("Backend offline or erroring. Switching to Mock Data.");
+        }
         setServerError(true);
         setRecent(MOCK_NOTES); 
       });
@@ -88,11 +96,17 @@ const Home = () => {
     setLoading(true);
     setHasSearched(true);
     try {
-      const res = await axios.get(`http://https://mit-notes.onrender.com/api/search?q=${query}`);
+      const res = await axios.get(`${API_URL}/search?q=${query}`);
       setResults(res.data);
       setServerError(false);
     } catch (err) {
       setServerError(true);
+      // Suppress console errors for expected backend failures (offline/500)
+      const isBackendError = err.code === 'ERR_NETWORK' || err.message === 'Network Error' || err.response?.status === 500;
+      if (!isBackendError) {
+          console.error(err);
+      }
+
       // Fallback Mock Search Logic
       const mockResults = MOCK_NOTES.filter(n => 
         n.subject.toLowerCase().includes(query.toLowerCase()) || 
@@ -213,7 +227,7 @@ const Home = () => {
               </div>
               
               <a 
-                href={note.filePath} 
+                href={note.filePath.startsWith('http') ? note.filePath : `${API_URL.replace('/api', '')}/${note.filePath}`}
                 target="_blank" 
                 rel="noreferrer"
                 onClick={(e) => { if(note.filePath === '#') { e.preventDefault(); alert("This is a demo note. Start backend to download real files."); } }}
@@ -240,6 +254,7 @@ const UploadPage = () => {
   const [file, setFile] = useState(null);
   const [formData, setFormData] = useState({ branch: 'Computer Science', subject: '', topic: '', description: '' });
   const [status, setStatus] = useState(null); 
+  const navigate = useNavigate();
 
   const branches = ['Computer Science', 'Information Technology', 'Mechanical', 'Civil', 'Electrical', 'Electronics', 'Other'];
 
@@ -253,16 +268,24 @@ const UploadPage = () => {
     Object.keys(formData).forEach(key => data.append(key, formData[key]));
 
     try {
-      await axios.post('http://https://mit-notes.onrender.com/api/upload', data);
+      await axios.post(`${API_URL}/upload`, data);
       setStatus('success');
       setFormData({ branch: 'Computer Science', subject: '', topic: '', description: '' });
       setFile(null);
+      // Optional: Redirect to home after successful upload
+      // navigate('/'); 
     } catch (err) {
-      if (err.message === 'Network Error' || err.code === 'ERR_NETWORK') {
-         setStatus('success'); // Fake success for demo
-         alert("Server disconnected. Demo upload simulated.");
+      // Check for Network Error OR Server Error (500) for demo fallback
+      const isBackendError = err.message === 'Network Error' || err.code === 'ERR_NETWORK' || err.response?.status === 500;
+      
+      if (isBackendError) {
+         // Fallback for demo mode
+         setStatus('success');
+         alert("Server disconnected or error. Demo upload simulated.");
+         setFormData({ branch: 'Computer Science', subject: '', topic: '', description: '' });
          setFile(null);
       } else {
+         console.error(err);
          setStatus('error');
       }
     }
