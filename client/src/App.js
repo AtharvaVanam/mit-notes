@@ -69,7 +69,7 @@ const Home = () => {
 
   useEffect(() => {
     // Attempt to fetch from backend
-    axios.get('http://localhost:5000/api/notes')
+    axios.get('http://https://mit-notes.onrender.com/api/notes')
       .then(res => {
         setRecent(res.data);
         setServerError(false);
@@ -88,7 +88,7 @@ const Home = () => {
     setLoading(true);
     setHasSearched(true);
     try {
-      const res = await axios.get(`http://localhost:5000/api/search?q=${query}`);
+      const res = await axios.get(`http://https://mit-notes.onrender.com/api/search?q=${query}`);
       setResults(res.data);
       setServerError(false);
     } catch (err) {
@@ -253,7 +253,7 @@ const UploadPage = () => {
     Object.keys(formData).forEach(key => data.append(key, formData[key]));
 
     try {
-      await axios.post('http://localhost:5000/api/upload', data);
+      await axios.post('http://https://mit-notes.onrender.com/api/upload', data);
       setStatus('success');
       setFormData({ branch: 'Computer Science', subject: '', topic: '', description: '' });
       setFile(null);
